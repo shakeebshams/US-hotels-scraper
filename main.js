@@ -30,18 +30,76 @@ MongoClient.connect(DBurl, { useNewUrlParser: true }, (err, client) => {
 async function main() {
 
     //using for loop intead of for each as it would be processed async by default
-    //for (let i = 0; i < unique.length; i++) { 
-        let city = unique[0] + " usa"
-        let location_id = await get_location_id(city)
-        console.log(location_id)
-        await process_data(location_id)
+    for (let i = 0; i < unique.length; i++) {
+        try {
+            let city = unique[i] + " usa";
+            console.log("city being processed: " + city);
+            let location_id = await get_location_id(city);
+            await hotels_request(location_id);
+        } catch (err) {
+            console.error(error);
+        }
 
-    //}
+    }
 }
 
-async function process_data(location_id) {
-    axios 
+async function hotels_request(location_id) {
+    let start_url = `https://api.tripadvisor.com/api/internal/1.14/location/${location_id}/hotels?currency=USD&lang=en&limit=50`
+    let next = true
+    try {
+        while (next) {
+            await axios.get(start_url, { 'headers': {'X-TripAdvisor-API-Key': process.env.API_KEY} })
+                .then((response) => {
+                    console.log(response.data.data.length);
+                    process_data(response.data.data);
+                    if (response.data.paging.next === null) {
+                        next = false;
+                    }
+                    start_url = response.data.paging.next;
+                })
+                .catch((error) => {
+                    console.log(error);
+                    next = false;
+                });
+        }
+    } catch (err) {
+        console.log("error in request, skipping to another city");
+        return;
+    }
+    return;
 }
+
+async function process_data(data) {
+    for (let i = 0; i < data.length; i++) {
+        let hotel = data[i];
+        let hotel_data = {
+            name: hotel.name,
+            latitude: hotel.latitude,
+            longitude: hotel.longitude,
+            type: hotel.subcategory_type_label,
+            tripadvisor_ranking: hotel.ranking,
+            price_range: hotel.price,
+            stars: hotel.hotel_class,
+            description: hotel.description,
+            website: hotel.website,
+            phone: hotel.phone,
+            email: hotel.email,
+            address: hotel.address,
+            city: hotel.address_obj.city,
+            state: hotel.address_obj.state,
+        }
+        let collection = db.collection("hotels-again");
+        await collection.insertOne(hotel_data, function(err, res) {
+            if (err) {
+                console.log(err);
+            };
+        })
+    }
+}
+
+
+
+
 /**
  *
  * @param {string} query
