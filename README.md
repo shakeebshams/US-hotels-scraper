@@ -1,1 +1,1 @@
-# US-hotels-scraper
+# hotel data miner
